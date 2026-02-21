@@ -16,6 +16,11 @@ type Repository struct {
 	db *sql.DB
 }
 
+type ActiveAlertTarget struct {
+	RuleID int64
+	Target string
+}
+
 func NewRepository(db *sql.DB) *Repository {
 	return &Repository{db: db}
 }
@@ -134,22 +139,28 @@ func (r *Repository) RecentContainerMetrics(ctx context.Context, containerID str
 	return out, rows.Err()
 }
 
-func (r *Repository) ListServicesWithHealth(ctx context.Context, minCPU float64, minMemBytes int64, limit int) ([]map[string]any, error) {
+func (r *Repository) ListServicesWithHealth(ctx context.Context, minCPU float64, minMemBytes int64, limit int, includeMissing bool) ([]map[string]any, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 20
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT s.id,s.name,s.status,c.id,c.restart_count,c.last_seen_at,
+	missingFilter := ""
+	if !includeMissing {
+		missingFilter = " AND c.status != 'missing'"
+	}
+	rows, err := r.db.QueryContext(ctx, fmt.Sprintf(`SELECT s.id,s.name,c.status,c.id,c.restart_count,c.last_seen_at,
 		COALESCE((SELECT cpu_pct FROM container_metrics cm WHERE cm.container_id=c.id ORDER BY ts DESC LIMIT 1),0),
 		COALESCE((SELECT mem_used_bytes FROM container_metrics cm WHERE cm.container_id=c.id ORDER BY ts DESC LIMIT 1),0),
 		COALESCE((SELECT MAX(ts) FROM logs l WHERE l.container_id=c.id),'')
 		FROM services s JOIN containers c ON c.service_id=s.id
-		WHERE COALESCE((SELECT cpu_pct FROM container_metrics cm WHERE cm.container_id=c.id ORDER BY ts DESC LIMIT 1),0) >= ?
-		   OR COALESCE((SELECT mem_used_bytes FROM container_metrics cm WHERE cm.container_id=c.id ORDER BY ts DESC LIMIT 1),0) >= ?
+		WHERE (
+			COALESCE((SELECT cpu_pct FROM container_metrics cm WHERE cm.container_id=c.id ORDER BY ts DESC LIMIT 1),0) >= ?
+			AND COALESCE((SELECT mem_used_bytes FROM container_metrics cm WHERE cm.container_id=c.id ORDER BY ts DESC LIMIT 1),0) >= ?
+		)%s
 		ORDER BY
 			COALESCE((SELECT cpu_pct FROM container_metrics cm WHERE cm.container_id=c.id ORDER BY ts DESC LIMIT 1),0) DESC,
 			COALESCE((SELECT mem_used_bytes FROM container_metrics cm WHERE cm.container_id=c.id ORDER BY ts DESC LIMIT 1),0) DESC,
 			c.restart_count DESC
-		LIMIT ?`, minCPU, minMemBytes, limit)
+		LIMIT ?`, missingFilter), minCPU, minMemBytes, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -404,6 +415,27 @@ func (r *Repository) ActiveAlertCount(ctx context.Context) (int, error) {
 	var n int
 	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM alerts WHERE status='firing'`).Scan(&n)
 	return n, err
+}
+
+func (r *Repository) ActiveAlertTargetsByMetric(ctx context.Context, metricKey string) ([]ActiveAlertTarget, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT a.rule_id,a.target_fingerprint
+		FROM alerts a
+		JOIN alert_rules r ON r.id=a.rule_id
+		WHERE a.status='firing' AND r.metric_key=?
+		GROUP BY a.rule_id,a.target_fingerprint`, metricKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]ActiveAlertTarget, 0, 16)
+	for rows.Next() {
+		var item ActiveAlertTarget
+		if err := rows.Scan(&item.RuleID, &item.Target); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
 }
 
 func (r *Repository) ListContainers(ctx context.Context) ([]models.Container, error) {

@@ -15,7 +15,8 @@ import (
 )
 
 type Client struct {
-	http *http.Client
+	http       *http.Client
+	streamHTTP *http.Client
 }
 
 type ContainerSummary struct {
@@ -79,7 +80,10 @@ func NewClient(socketPath string) *Client {
 			return dialer.DialContext(ctx, "unix", socketPath)
 		},
 	}
-	return &Client{http: &http.Client{Transport: transport, Timeout: 30 * time.Second}}
+	return &Client{
+		http:       &http.Client{Transport: transport, Timeout: 30 * time.Second},
+		streamHTTP: &http.Client{Transport: transport},
+	}
 }
 
 func (c *Client) Ping(ctx context.Context) error {
@@ -141,7 +145,7 @@ func (c *Client) Logs(ctx context.Context, id string, since time.Time, follow bo
 	if err != nil {
 		return nil, err
 	}
-	res, err := c.http.Do(req)
+	res, err := c.streamHTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +162,7 @@ func (c *Client) Events(ctx context.Context) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	res, err := c.http.Do(req)
+	res, err := c.streamHTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}

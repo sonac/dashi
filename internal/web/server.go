@@ -97,13 +97,14 @@ func pct(used, total int64) float64 {
 }
 
 func (s *Server) handleServicesFragment(w http.ResponseWriter, r *http.Request) {
-	minCPU := 1.0
+	minCPU := 0.0
 	if v := r.URL.Query().Get("min_cpu"); v != "" {
-		if parsed, err := strconv.ParseFloat(v, 64); err == nil && parsed >= 0 {
+		normalized := strings.ReplaceAll(v, ",", ".")
+		if parsed, err := strconv.ParseFloat(normalized, 64); err == nil && parsed >= 0 {
 			minCPU = parsed
 		}
 	}
-	minMemMB := int64(128)
+	minMemMB := int64(0)
 	if v := r.URL.Query().Get("min_mem_mb"); v != "" {
 		if parsed, err := strconv.ParseInt(v, 10, 64); err == nil && parsed >= 0 {
 			minMemMB = parsed
@@ -115,7 +116,8 @@ func (s *Server) handleServicesFragment(w http.ResponseWriter, r *http.Request) 
 			limit = parsed
 		}
 	}
-	rows, err := s.repo.ListServicesWithHealth(r.Context(), minCPU, minMemMB*1024*1024, limit)
+	includeMissing := r.URL.Query().Get("include_missing") == "1"
+	rows, err := s.repo.ListServicesWithHealth(r.Context(), minCPU, minMemMB*1024*1024, limit, includeMissing)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return

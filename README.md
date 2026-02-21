@@ -27,10 +27,26 @@ Then open `http://localhost:8080`.
 docker compose up -d --build
 ```
 
+To ensure Docker API/log access works from inside the Dashi container, export host socket settings before starting:
+
+```bash
+export DOCKER_SOCKET=/var/run/docker.sock
+export DOCKER_GID=$(stat -c '%g' "$DOCKER_SOCKET")
+docker compose up -d --build
+```
+
+On macOS, use:
+
+```bash
+export DOCKER_GID=$(stat -f '%g' "$DOCKER_SOCKET")
+```
+
 Mounts:
 
-- `/var/run/docker.sock` (read-only)
+- `${DOCKER_SOCKET:-/var/run/docker.sock}` to same path in container
 - `./data` to `/data` for SQLite
+
+After startup, verify Docker connectivity via `GET /readyz` (returns `ready` only if DB and Docker are reachable).
 
 ## Environment variables
 

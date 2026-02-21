@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dashi</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -25,7 +26,7 @@
 
 <main class="layout">
   <aside class="left-rail">
-    <section class="card" id="overview" hx-get="/fragments/overview" hx-trigger="load, every 5s" hx-swap="innerHTML"></section>
+    <section class="card" id="overview" hx-get="/fragments/overview" hx-trigger="load" hx-swap="innerHTML"></section>
 
     <section class="card logs-controls">
       <h2>Logs Explorer</h2>
@@ -33,7 +34,7 @@
             hx-get="/fragments/logs"
             hx-target="#logs-panel"
             hx-swap="innerHTML"
-            hx-trigger="submit, load"
+            hx-trigger="submit"
             hx-include="#logs-filter">
         <label>Service ID <input name="service" placeholder="all services"></label>
         <label>Query <input name="q" placeholder="error, timeout, migration"></label>
@@ -60,8 +61,8 @@
   </aside>
 
   <section class="content-column">
-    <section class="card" id="services" hx-get="/fragments/services" hx-trigger="load, every 5s" hx-swap="innerHTML"></section>
-    <section class="card" id="alerts" hx-get="/fragments/alerts" hx-trigger="load, every 5s" hx-swap="innerHTML"></section>
+    <section class="card" id="services" hx-get="/fragments/services" hx-trigger="load" hx-swap="innerHTML"></section>
+    <section class="card" id="alerts" hx-get="/fragments/alerts" hx-trigger="load" hx-swap="innerHTML"></section>
     <section class="card" id="logs-panel">
       <h2>Recent Logs</h2>
       <p class="muted">Loading logs…</p>

@@ -8,9 +8,12 @@ services:
       APP_ADDR: ":8080"
       APP_DATA_DIR: "/data"
       APP_RETENTION_DAYS: "14"
+      DOCKER_SOCKET: "${DOCKER_SOCKET:-/var/run/docker.sock}"
       TELEGRAM_BOT_TOKEN: ""
       TELEGRAM_CHAT_ID: ""
+    group_add:
+      - "${DOCKER_GID:-0}"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:${DOCKER_SOCKET:-/var/run/docker.sock}
       - ./data:/data
     restart: unless-stopped

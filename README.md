@@ -54,6 +54,7 @@ After startup, verify Docker connectivity via `GET /readyz` (returns `ready` onl
 - `APP_DATA_DIR` (default `./data`)
 - `APP_DB_PATH` (default `$APP_DATA_DIR/app.db`)
 - `APP_RETENTION_DAYS` (default `14`)
+- `APP_SKIP_SELF_LOGS` (default `true`)
 - `DOCKER_SOCKET` (default `/var/run/docker.sock`)
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`

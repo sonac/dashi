@@ -61,7 +61,7 @@ func New(cfg config.Config, logger *slog.Logger) (*App, error) {
 		db:        repo,
 		docker:    dc,
 		collector: collector.NewService(repo, dc, logger.With("module", "collector")),
-		ingestor:  logs.NewIngestor(repo, dc, logger.With("module", "logs")),
+		ingestor:  logs.NewIngestor(repo, dc, logger.With("module", "logs"), cfg.SkipSelfLogs),
 		alerts:    alerts.NewEngine(repo, n, logger.With("module", "alerts"), cfg.DebugRestarts),
 		retention: retention.NewService(repo, cfg.RetentionDays, logger.With("module", "retention")),
 		notify:    n,

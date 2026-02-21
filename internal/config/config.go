@@ -16,6 +16,7 @@ type Config struct {
 	RulesInterval    time.Duration
 	RetentionDays    int
 	DebugRestarts    bool
+	SkipSelfLogs     bool
 	TelegramBotToken string
 	TelegramChatID   string
 }
@@ -32,6 +33,7 @@ func Load() Config {
 		RulesInterval:    getenvDuration("APP_RULES_INTERVAL", 15*time.Second),
 		RetentionDays:    retention,
 		DebugRestarts:    getenvBool("APP_DEBUG_RESTART_ALERTS", false),
+		SkipSelfLogs:     getenvBool("APP_SKIP_SELF_LOGS", true),
 		TelegramBotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
 		TelegramChatID:   os.Getenv("TELEGRAM_CHAT_ID"),
 	}

@@ -46,6 +46,7 @@ func (e *Engine) Evaluate(ctx context.Context) {
 		}
 	}
 	containers, _ := e.repo.ListContainers(ctx)
+	e.cleanupStaleRestartAlerts(ctx, containers)
 
 	for _, r := range rules {
 		if !r.Enabled {
@@ -66,18 +67,31 @@ func (e *Engine) Evaluate(ctx context.Context) {
 				}
 			}
 			if r.MetricKey == "container_restarts" {
+				runningByService := make(map[string]models.Container, len(containers))
+				for _, c := range containers {
+					if !strings.EqualFold(c.Status, "running") {
+						continue
+					}
+					if existing, ok := runningByService[c.ServiceID]; !ok || c.LastSeenAt.After(existing.LastSeenAt) {
+						runningByService[c.ServiceID] = c
+					}
+				}
+
 				for _, c := range containers {
 					prev, seen := e.lastRest[c.ID]
 					restarted := 0.0
+					reason := "none"
 					if seen && c.RestartCount > prev {
 						restarted = 1
+						reason = "counter"
 					}
-					reason := "counter"
-					if prevID, ok := e.lastSvc[c.ServiceID]; ok && prevID != c.ID {
-						restarted = 1
-						reason = "service_container_changed"
+					if running, ok := runningByService[c.ServiceID]; ok && running.ID == c.ID {
+						if prevID, ok := e.lastSvc[c.ServiceID]; ok && prevID != c.ID {
+							restarted = 1
+							reason = "service_container_changed"
+						}
+						e.lastSvc[c.ServiceID] = c.ID
 					}
-					e.lastSvc[c.ServiceID] = c.ID
 					e.lastRest[c.ID] = c.RestartCount
 					if e.debug {
 						e.log.Info("restart eval",
@@ -93,6 +107,38 @@ func (e *Engine) Evaluate(ctx context.Context) {
 					}
 					e.evalTarget(ctx, r.ID, c.ID, shortTarget(c.ID), r, restarted)
 				}
+			}
+		}
+	}
+}
+
+func (e *Engine) cleanupStaleRestartAlerts(ctx context.Context, containers []models.Container) {
+	now := e.now().UTC()
+	running := make(map[string]bool, len(containers))
+	for _, c := range containers {
+		if strings.EqualFold(c.Status, "running") {
+			running[c.ID] = true
+		}
+	}
+	active, err := e.repo.ActiveAlertTargetsByMetric(ctx, "container_restarts")
+	if err != nil {
+		e.log.Error("load active restart alerts", "err", err)
+		return
+	}
+	for _, a := range active {
+		if running[a.Target] {
+			continue
+		}
+		state, _, lastFired, _, gErr := e.repo.GetAlertState(ctx, a.RuleID, a.Target)
+		if gErr != nil && gErr != sql.ErrNoRows {
+			e.log.Error("get restart alert state", "err", gErr, "rule_id", a.RuleID, "target", shortTarget(a.Target))
+			continue
+		}
+		if state == "FIRING" {
+			_ = e.repo.CloseAlert(ctx, a.RuleID, a.Target, now)
+			_ = e.repo.UpsertAlertState(ctx, a.RuleID, a.Target, "OK", now, lastFired, &now)
+			if e.debug {
+				e.log.Info("auto-recovered stale restart alert", "rule_id", a.RuleID, "target", shortTarget(a.Target))
 			}
 		}
 	}

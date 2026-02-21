@@ -23,7 +23,7 @@
   <section class="card" id="restarts" hx-get="/fragments/restarts" hx-trigger="load, every 5s" hx-swap="innerHTML"></section>
   <section class="card">
     <h2>Logs</h2>
-    <form id="logs-filter" class="inline">
+    <form id="logs-filter" class="inline" hx-get="/api/logs" hx-target="#logs-json" hx-swap="innerHTML">
       <label>Service <input name="service" placeholder="service id"></label>
       <label>Query <input name="q" placeholder="contains text"></label>
       <label>Level
@@ -61,7 +61,7 @@
         </select>
       </label>
       <label>Limit <input name="limit" type="number" min="1" max="500" value="150"></label>
-      <button hx-get="/api/logs" hx-include="#logs-filter" hx-target="#logs-json" hx-swap="innerHTML">Fetch JSON</button>
+      <button type="submit">Fetch JSON</button>
     </form>
     <pre id="logs-json" class="json"></pre>
   </section>

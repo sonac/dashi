@@ -3,6 +3,7 @@ package logs
 import (
 	"context"
 	"log/slog"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -13,16 +14,19 @@ import (
 )
 
 type Ingestor struct {
-	repo *db.Repository
-	dc   *docker.Client
-	log  *slog.Logger
+	repo         *db.Repository
+	dc           *docker.Client
+	log          *slog.Logger
+	skipSelfLogs bool
+	selfID       string
 
 	mu      sync.Mutex
 	workers map[string]context.CancelFunc
 }
 
-func NewIngestor(repo *db.Repository, dc *docker.Client, logger *slog.Logger) *Ingestor {
-	return &Ingestor{repo: repo, dc: dc, log: logger, workers: map[string]context.CancelFunc{}}
+func NewIngestor(repo *db.Repository, dc *docker.Client, logger *slog.Logger, skipSelfLogs bool) *Ingestor {
+	hostname, _ := os.Hostname()
+	return &Ingestor{repo: repo, dc: dc, log: logger, skipSelfLogs: skipSelfLogs, selfID: strings.TrimSpace(hostname), workers: map[string]context.CancelFunc{}}
 }
 
 func (i *Ingestor) Reconcile(ctx context.Context) {
@@ -33,6 +37,9 @@ func (i *Ingestor) Reconcile(ctx context.Context) {
 	}
 	live := map[string]bool{}
 	for _, c := range containers {
+		if i.skipSelfLogs && i.isSelfContainer(c.ID) {
+			continue
+		}
 		live[c.ID] = true
 		i.ensureWorker(ctx, c.ID, inferServiceName(c))
 	}
@@ -44,6 +51,13 @@ func (i *Ingestor) Reconcile(ctx context.Context) {
 		}
 	}
 	i.mu.Unlock()
+}
+
+func (i *Ingestor) isSelfContainer(containerID string) bool {
+	if i.selfID == "" {
+		return false
+	}
+	return containerID == i.selfID || strings.HasPrefix(containerID, i.selfID) || strings.HasPrefix(i.selfID, containerID)
 }
 
 func (i *Ingestor) ensureWorker(parent context.Context, containerID, serviceID string) {
@@ -92,8 +106,13 @@ func (i *Ingestor) runWorker(ctx context.Context, containerID, serviceID string)
 		if err != nil {
 			i.log.Warn("parse docker stream", "container", containerID, "err", err)
 			time.Sleep(1 * time.Second)
+		} else {
+			// Stream can end cleanly when Docker reconnects/rotates logs.
+			// Prevent a tight reconnect loop that can spike CPU.
+			time.Sleep(500 * time.Millisecond)
 		}
-		since = time.Now().Add(-30 * time.Second)
+		// Keep a small overlap on reconnect to reduce missed lines without re-reading too much history.
+		since = time.Now().Add(-2 * time.Second)
 	}
 }
 

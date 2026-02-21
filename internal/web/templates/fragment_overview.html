@@ -1,0 +1,27 @@
+<h2>Overview</h2>
+<div class="metric-grid">
+  <article class="metric-cell">
+    <p>CPU</p>
+    <strong>{{pct .metric.CPUPct}}</strong>
+  </article>
+  <article class="metric-cell">
+    <p>Memory</p>
+    <strong>{{pct .mem_pct}}</strong>
+  </article>
+  <article class="metric-cell">
+    <p>Disk</p>
+    <strong>{{pct .disk_pct}}</strong>
+  </article>
+  <article class="metric-cell">
+    <p>Load</p>
+    <strong>{{printf "%.2f %.2f %.2f" .metric.Load1 .metric.Load5 .metric.Load15}}</strong>
+  </article>
+  <article class="metric-cell">
+    <p>Uptime</p>
+    <strong>{{.metric.UptimeSec}}s</strong>
+  </article>
+  <article class="metric-cell">
+    <p>Active Alerts</p>
+    <strong>{{.activeAlerts}}</strong>
+  </article>
+</div>

@@ -1,0 +1,16 @@
+<h3>{{.title}}</h3>
+<table>
+  <thead><tr><th>Time</th><th>Level</th><th>Stream</th><th>Message</th></tr></thead>
+  <tbody>
+  {{range .entries}}
+    <tr>
+      <td>{{.TS}}</td>
+      <td>{{.Level}}</td>
+      <td>{{.Stream}}</td>
+      <td class="log-msg">{{.Message}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="4">No logs found</td></tr>
+  {{end}}
+  </tbody>
+</table>

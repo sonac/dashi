@@ -1,0 +1,20 @@
+<h2>Services</h2>
+<table>
+  <thead><tr><th>Name</th><th>Status</th><th>CPU</th><th>Mem</th><th>Restarts</th><th>Last Seen</th><th>Logs</th></tr></thead>
+  <tbody>
+  {{range .services}}
+    <tr>
+      <td>{{.name}}</td>
+      <td>{{.status}}</td>
+      <td>{{printf "%.1f%%" .cpu_pct}}</td>
+      <td>{{bytesToMB .mem_used_bytes}}</td>
+      <td>{{.restart_count}}</td>
+      <td>{{.last_seen}}</td>
+      <td><a hx-get="/fragments/service/{{.service_id}}/logs" hx-target="#service-logs" hx-swap="innerHTML">View</a></td>
+    </tr>
+  {{else}}
+    <tr><td colspan="7">No services discovered yet</td></tr>
+  {{end}}
+  </tbody>
+</table>
+<div id="service-logs"></div>

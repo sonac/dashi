@@ -1,0 +1,17 @@
+<h2>Container Restarts</h2>
+<table>
+  <thead><tr><th>Status</th><th>Container</th><th>Started</th><th>Ended</th><th>Summary</th></tr></thead>
+  <tbody>
+  {{range .restarts}}
+    <tr>
+      <td>{{.status}}</td>
+      <td><code>{{.target}}</code></td>
+      <td>{{.started}}</td>
+      <td>{{.ended}}</td>
+      <td>{{.summary}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="5">No restart alerts yet</td></tr>
+  {{end}}
+  </tbody>
+</table>

@@ -1,0 +1,19 @@
+<div class="panel-head">
+  <h2>{{.title}}</h2>
+  <span class="chip">Live when visible</span>
+</div>
+<table class="data-table log-table">
+  <thead><tr><th>Time</th><th>Level</th><th>Stream</th><th>Message</th></tr></thead>
+  <tbody>
+  {{range .entries}}
+    <tr>
+      <td>{{.TS}}</td>
+      <td><span class="status status-{{.Level}}">{{.Level}}</span></td>
+      <td>{{.Stream}}</td>
+      <td class="log-msg">{{.Message}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="4">No logs found for current filters</td></tr>
+  {{end}}
+  </tbody>
+</table>

@@ -1,0 +1,6 @@
+/data/
+.gocache/
+.gomodcache/
+*.db
+*.db-shm
+*.db-wal

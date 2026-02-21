@@ -1,0 +1,20 @@
+<div class="panel-head">
+  <h2>Alerts</h2>
+  <span class="chip">Recent activity</span>
+</div>
+<table class="data-table">
+  <thead><tr><th>Status</th><th>Rule</th><th>Summary</th><th>Started</th><th>Ended</th></tr></thead>
+  <tbody>
+  {{range .alerts}}
+    <tr>
+      <td><span class="status status-{{.status}}">{{.status}}</span></td>
+      <td>{{.rule_name}}</td>
+      <td>{{.summary}}</td>
+      <td>{{.started}}</td>
+      <td>{{.ended}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="5">No alerts yet</td></tr>
+  {{end}}
+  </tbody>
+</table>

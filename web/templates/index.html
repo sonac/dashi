@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashi</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Dashi Dashboard</h1>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/settings">Settings</a>
+  </nav>
+</header>
+<main class="grid">
+  <section class="card" id="overview" hx-get="/fragments/overview" hx-trigger="load, every 5s" hx-swap="innerHTML"></section>
+  <section class="card" id="services" hx-get="/fragments/services" hx-trigger="load, every 5s" hx-swap="innerHTML"></section>
+  <section class="card" id="alerts" hx-get="/fragments/alerts" hx-trigger="load, every 5s" hx-swap="innerHTML"></section>
+  <section class="card" id="restarts" hx-get="/fragments/restarts" hx-trigger="load, every 5s" hx-swap="innerHTML"></section>
+  <section class="card">
+    <h2>Logs</h2>
+    <form id="logs-filter" class="inline">
+      <label>Service <input name="service" placeholder="service id"></label>
+      <label>Query <input name="q" placeholder="contains text"></label>
+      <label>Level
+        <select name="level">
+          <option value="">Any</option>
+          <option>ERROR</option>
+          <option>WARN</option>
+          <option>INFO</option>
+          <option>DEBUG</option>
+        </select>
+      </label>
+      <label>Stream
+        <select name="stream">
+          <option value="">Any</option>
+          <option value="stdout">stdout</option>
+          <option value="stderr">stderr</option>
+        </select>
+      </label>
+      <label>Range
+        <select name="range">
+          <option value="">All</option>
+          <option value="5m">5m</option>
+          <option value="15m">15m</option>
+          <option value="1h">1h</option>
+          <option value="6h">6h</option>
+          <option value="24h">24h</option>
+        </select>
+      </label>
+      <label>Group
+        <select name="group_by">
+          <option value="">None</option>
+          <option value="service">Service</option>
+          <option value="level">Level</option>
+          <option value="stream">Stream</option>
+        </select>
+      </label>
+      <label>Limit <input name="limit" type="number" min="1" max="500" value="150"></label>
+      <button hx-get="/api/logs" hx-include="#logs-filter" hx-target="#logs-json" hx-swap="innerHTML">Fetch JSON</button>
+    </form>
+    <pre id="logs-json" class="json"></pre>
+  </section>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>

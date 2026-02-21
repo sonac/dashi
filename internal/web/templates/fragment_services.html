@@ -1,0 +1,44 @@
+<div class="panel-head">
+  <h2>Services</h2>
+  <span class="chip">Top {{.serviceCnt}} by usage</span>
+</div>
+<form class="inline compact"
+      hx-get="/fragments/services"
+      hx-target="#services"
+      hx-swap="innerHTML">
+  <label>Min CPU %
+    <input type="number" name="min_cpu" step="0.1" min="0" value="{{printf "%.1f" .minCPU}}">
+  </label>
+  <label>Min Mem MB
+    <input type="number" name="min_mem_mb" min="0" value="{{.minMemMB}}">
+  </label>
+  <label>Rows
+    <input type="number" name="limit" min="1" max="100" value="{{.limit}}">
+  </label>
+  <button type="submit">Filter</button>
+</form>
+<table class="data-table">
+  <thead><tr><th>Name</th><th>Status</th><th>CPU</th><th>Mem</th><th>Restarts</th><th>Last Seen</th><th></th></tr></thead>
+  <tbody>
+  {{range .services}}
+    <tr>
+      <td>{{.name}}</td>
+      <td><span class="status status-{{.status}}">{{.status}}</span></td>
+      <td>{{printf "%.1f%%" .cpu_pct}}</td>
+      <td>{{bytesToMB .mem_used_bytes}}</td>
+      <td>{{.restart_count}}</td>
+      <td>{{.last_seen}}</td>
+      <td>
+        <a href="#logs-panel"
+           class="action-link"
+           hx-get="/fragments/logs?service={{.service_id}}&limit=250"
+           hx-target="#logs-panel"
+           hx-swap="innerHTML"
+           hx-on:click="document.querySelector('#logs-filter [name=service]').value='{{.service_id}}'">Open Logs</a>
+      </td>
+    </tr>
+  {{else}}
+    <tr><td colspan="7">No services match current resource thresholds</td></tr>
+  {{end}}
+  </tbody>
+</table>

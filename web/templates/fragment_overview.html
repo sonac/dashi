@@ -1,0 +1,9 @@
+<h2>Overview</h2>
+<div class="stats">
+  <div><strong>CPU</strong><span>{{pct .metric.CPUPct}}</span></div>
+  <div><strong>Memory</strong><span>{{pct .mem_pct}}</span></div>
+  <div><strong>Disk</strong><span>{{pct .disk_pct}}</span></div>
+  <div><strong>Load</strong><span>{{printf "%.2f %.2f %.2f" .metric.Load1 .metric.Load5 .metric.Load15}}</span></div>
+  <div><strong>Uptime</strong><span>{{.metric.UptimeSec}}s</span></div>
+  <div><strong>Active Alerts</strong><span>{{.activeAlerts}}</span></div>
+</div>

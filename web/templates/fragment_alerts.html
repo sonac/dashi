@@ -1,0 +1,17 @@
+<h2>Alerts</h2>
+<table>
+  <thead><tr><th>Status</th><th>Rule</th><th>Summary</th><th>Started</th><th>Ended</th></tr></thead>
+  <tbody>
+  {{range .alerts}}
+    <tr>
+      <td>{{.status}}</td>
+      <td>{{.rule_name}}</td>
+      <td>{{.summary}}</td>
+      <td>{{.started}}</td>
+      <td>{{.ended}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="5">No alerts yet</td></tr>
+  {{end}}
+  </tbody>
+</table>

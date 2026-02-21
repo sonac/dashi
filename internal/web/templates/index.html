@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="canvas-bg"></div>
+<header class="topbar">
+  <div>
+    <p class="eyebrow">Home Server Observability</p>
+    <h1>Dashi</h1>
+  </div>
+  <nav>
+    <a class="active" href="/">Dashboard</a>
+    <a href="/settings">Settings</a>
+  </nav>
+</header>
+
+<main class="layout">
+  <aside class="left-rail">
+    <section class="card" id="overview" hx-get="/fragments/overview" hx-trigger="load, every 5s" hx-swap="innerHTML"></section>
+
+    <section class="card logs-controls">
+      <h2>Logs Explorer</h2>
+      <form id="logs-filter" class="stack"
+            hx-get="/fragments/logs"
+            hx-target="#logs-panel"
+            hx-swap="innerHTML"
+            hx-trigger="submit, load"
+            hx-include="#logs-filter">
+        <label>Service ID <input name="service" placeholder="all services"></label>
+        <label>Query <input name="q" placeholder="error, timeout, migration"></label>
+        <label>Level
+          <select name="level">
+            <option value="">Any</option>
+            <option>ERROR</option>
+            <option>WARN</option>
+            <option>INFO</option>
+            <option>DEBUG</option>
+          </select>
+        </label>
+        <label>Limit
+          <select name="limit">
+            <option value="100">100</option>
+            <option value="200">200</option>
+            <option value="400">400</option>
+          </select>
+        </label>
+        <button type="submit">Apply Filters</button>
+      </form>
+      <p class="muted">This pane is for fast triage and query controls.</p>
+    </section>
+  </aside>
+
+  <section class="content-column">
+    <section class="card" id="services" hx-get="/fragments/services" hx-trigger="load, every 5s" hx-swap="innerHTML"></section>
+    <section class="card" id="alerts" hx-get="/fragments/alerts" hx-trigger="load, every 5s" hx-swap="innerHTML"></section>
+    <section class="card" id="logs-panel">
+      <h2>Recent Logs</h2>
+      <p class="muted">Loading logs…</p>
+    </section>
+  </section>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

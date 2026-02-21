@@ -1,0 +1,14 @@
+version: '3'
+
+tasks:
+  setup-dev:
+    desc: Prepare local development environment
+    cmds:
+      - mkdir -p data .gocache .gomodcache
+      - GOCACHE={{.USER_WORKING_DIR}}/.gocache GOMODCACHE={{.USER_WORKING_DIR}}/.gomodcache go mod tidy
+
+  dev:
+    desc: Run the app locally
+    deps: [setup-dev]
+    cmds:
+      - GOCACHE={{.USER_WORKING_DIR}}/.gocache GOMODCACHE={{.USER_WORKING_DIR}}/.gomodcache go run ./cmd/server

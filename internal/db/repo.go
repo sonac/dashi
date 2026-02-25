@@ -145,7 +145,7 @@ func (r *Repository) ListServicesWithHealth(ctx context.Context, minCPU float64,
 	}
 	missingFilter := ""
 	if !includeMissing {
-		missingFilter = " AND c.status != 'missing'"
+		missingFilter = " AND c.status NOT IN ('missing','exited')"
 	}
 	rows, err := r.db.QueryContext(ctx, fmt.Sprintf(`SELECT s.id,s.name,c.status,c.id,c.restart_count,c.last_seen_at,
 		COALESCE((SELECT cpu_pct FROM container_metrics cm WHERE cm.container_id=c.id ORDER BY ts DESC LIMIT 1),0),
@@ -346,11 +346,14 @@ func (r *Repository) CloseAlert(ctx context.Context, ruleID int64, target string
 	return err
 }
 
-func (r *Repository) RecentAlerts(ctx context.Context, limit int) ([]map[string]any, error) {
+func (r *Repository) RecentAlerts(ctx context.Context, since time.Time, limit int) ([]map[string]any, error) {
 	if limit <= 0 {
 		limit = 100
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT a.id,a.status,a.started_ts,a.ended_ts_nullable,a.summary,r.name FROM alerts a JOIN alert_rules r ON r.id=a.rule_id ORDER BY a.started_ts DESC LIMIT ?`, limit)
+	rows, err := r.db.QueryContext(ctx, `SELECT a.id,a.status,a.started_ts,a.ended_ts_nullable,a.summary,r.name
+		FROM alerts a JOIN alert_rules r ON r.id=a.rule_id
+		WHERE a.started_ts >= ?
+		ORDER BY a.started_ts DESC LIMIT ?`, since.UTC(), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -373,16 +376,16 @@ func (r *Repository) RecentAlerts(ctx context.Context, limit int) ([]map[string]
 	return out, rows.Err()
 }
 
-func (r *Repository) RecentRestartAlerts(ctx context.Context, limit int) ([]map[string]any, error) {
+func (r *Repository) RecentRestartAlerts(ctx context.Context, since time.Time, limit int) ([]map[string]any, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 20
 	}
 	rows, err := r.db.QueryContext(ctx, `SELECT a.id,a.target_fingerprint,a.status,a.started_ts,a.ended_ts_nullable,a.summary
 		FROM alerts a
 		JOIN alert_rules r ON r.id=a.rule_id
-		WHERE r.metric_key='container_restarts'
+		WHERE r.metric_key='container_restarts' AND a.started_ts >= ?
 		ORDER BY a.started_ts DESC
-		LIMIT ?`, limit)
+		LIMIT ?`, since.UTC(), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -404,6 +407,34 @@ func (r *Repository) RecentRestartAlerts(ctx context.Context, limit int) ([]map[
 		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+func (r *Repository) DeleteRecoveredAlerts(ctx context.Context) (int64, error) {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM alerts WHERE status='recovered'`)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+func (r *Repository) DeleteAllAlerts(ctx context.Context) (int64, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	res, err := tx.ExecContext(ctx, `DELETE FROM alerts`)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM alert_states`); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 func (r *Repository) InsertNotificationEvent(ctx context.Context, alertID int64, channel, status string, attempts int, lastErr string, sent *time.Time) error {

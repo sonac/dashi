@@ -45,6 +45,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/fragments/overview", s.handleOverviewFragment)
 	mux.HandleFunc("/fragments/services", s.handleServicesFragment)
 	mux.HandleFunc("/fragments/alerts", s.handleAlertsFragment)
+	mux.HandleFunc("/fragments/alerts/cleanup", s.handleAlertsCleanup)
 	mux.HandleFunc("/fragments/restarts", s.handleRestartAlertsFragment)
 	mux.HandleFunc("/fragments/logs", s.handleLogsFragment)
 	mux.HandleFunc("/fragments/service/", s.handleServiceSubroutes)
@@ -132,7 +133,46 @@ func (s *Server) handleServicesFragment(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleAlertsFragment(w http.ResponseWriter, r *http.Request) {
-	alerts, err := s.repo.RecentAlerts(r.Context(), 100)
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.renderAlertsFragment(w, r)
+}
+
+func (s *Server) handleAlertsCleanup(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	action := strings.TrimSpace(strings.ToLower(r.FormValue("action")))
+	switch action {
+	case "recovered":
+		if _, err := s.repo.DeleteRecoveredAlerts(r.Context()); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	case "all":
+		if _, err := s.repo.DeleteAllAlerts(r.Context()); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	default:
+		http.Error(w, "invalid cleanup action", http.StatusBadRequest)
+		return
+	}
+
+	s.renderAlertsFragment(w, r)
+}
+
+func (s *Server) renderAlertsFragment(w http.ResponseWriter, r *http.Request) {
+	since := time.Now().Add(-24 * time.Hour)
+	alerts, err := s.repo.RecentAlerts(r.Context(), since, 100)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -141,7 +181,8 @@ func (s *Server) handleAlertsFragment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleRestartAlertsFragment(w http.ResponseWriter, r *http.Request) {
-	restarts, err := s.repo.RecentRestartAlerts(r.Context(), 20)
+	since := time.Now().Add(-24 * time.Hour)
+	restarts, err := s.repo.RecentRestartAlerts(r.Context(), since, 20)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return

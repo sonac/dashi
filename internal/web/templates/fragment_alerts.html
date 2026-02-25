@@ -1,6 +1,21 @@
 <div class="panel-head">
   <h2>Alerts</h2>
-  <span class="chip">Recent activity</span>
+  <span class="chip">Last 24h</span>
+</div>
+<div class="inline compact">
+  <button hx-post="/fragments/alerts/cleanup"
+          hx-vals='{"action":"recovered"}'
+          hx-target="#alerts"
+          hx-swap="innerHTML">
+    Clear Recovered
+  </button>
+  <button hx-post="/fragments/alerts/cleanup"
+          hx-vals='{"action":"all"}'
+          hx-confirm="Delete all alert history and states?"
+          hx-target="#alerts"
+          hx-swap="innerHTML">
+    Clear All
+  </button>
 </div>
 <table class="data-table">
   <thead><tr><th>Status</th><th>Rule</th><th>Summary</th><th>Started</th><th>Ended</th></tr></thead>

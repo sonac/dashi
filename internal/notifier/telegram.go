@@ -7,39 +7,49 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 )
 
 type Telegram struct {
-	Token  string
-	ChatID string
-	HTTP   *http.Client
+	HTTP *http.Client
+
+	mu     sync.RWMutex
+	token  string
+	chatID string
 }
 
 func NewTelegram(token, chatID string) *Telegram {
 	return &Telegram{
-		Token:  token,
-		ChatID: chatID,
+		token:  token,
+		chatID: chatID,
 		HTTP:   &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
 func (t *Telegram) Enabled() bool {
-	return t.Token != "" && t.ChatID != ""
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.token != "" && t.chatID != ""
 }
 
 func (t *Telegram) Update(token, chatID string) {
-	t.Token = token
-	t.ChatID = chatID
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.token = token
+	t.chatID = chatID
 }
 
 func (t *Telegram) Send(ctx context.Context, msg string) error {
-	if !t.Enabled() {
+	t.mu.RLock()
+	token, chatID := t.token, t.chatID
+	t.mu.RUnlock()
+	if token == "" || chatID == "" {
 		return fmt.Errorf("telegram not configured")
 	}
-	payload := map[string]any{"chat_id": t.ChatID, "text": msg, "disable_web_page_preview": true}
+	payload := map[string]any{"chat_id": chatID, "text": msg, "disable_web_page_preview": true}
 	b, _ := json.Marshal(payload)
-	u := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", t.Token)
+	u := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(b))
 	if err != nil {
 		return err

@@ -120,11 +120,11 @@ func (i *Ingestor) flushLoop(ctx context.Context, in <-chan models.LogEntry) {
 	t := time.NewTicker(2 * time.Second)
 	defer t.Stop()
 	batch := make([]models.LogEntry, 0, 200)
-	flush := func() {
+	flush := func(flushCtx context.Context) {
 		if len(batch) == 0 {
 			return
 		}
-		if err := i.repo.InsertLogs(ctx, batch); err != nil {
+		if err := i.repo.InsertLogs(flushCtx, batch); err != nil {
 			i.log.Error("insert logs", "err", err, "count", len(batch))
 		}
 		batch = batch[:0]
@@ -132,19 +132,19 @@ func (i *Ingestor) flushLoop(ctx context.Context, in <-chan models.LogEntry) {
 	for {
 		select {
 		case <-ctx.Done():
-			flush()
+			flush(context.Background())
 			return
 		case e, ok := <-in:
 			if !ok {
-				flush()
+				flush(context.Background())
 				return
 			}
 			batch = append(batch, e)
 			if len(batch) >= 200 {
-				flush()
+				flush(ctx)
 			}
 		case <-t.C:
-			flush()
+			flush(ctx)
 		}
 	}
 }

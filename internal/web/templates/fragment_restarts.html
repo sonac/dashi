@@ -1,10 +1,13 @@
-<h2>Container Restarts</h2>
-<table>
+<div class="panel-head">
+  <h2>Container Restarts</h2>
+  <span class="chip">Last 24h</span>
+</div>
+<table class="data-table">
   <thead><tr><th>Status</th><th>Container</th><th>Started</th><th>Ended</th><th>Summary</th></tr></thead>
   <tbody>
   {{range .restarts}}
     <tr>
-      <td>{{.status}}</td>
+      <td><span class="status status-{{.status}}">{{.status}}</span></td>
       <td><code>{{.target}}</code></td>
       <td>{{.started}}</td>
       <td>{{.ended}}</td>

@@ -50,8 +50,21 @@
       saveLogsFilter(form);
     });
 
-    if (window.htmx) {
-      window.htmx.trigger(form, 'submit');
+    function fireInitialLoad() {
+      if (window.htmx) {
+        window.htmx.trigger(form, 'submit');
+      }
+    }
+    // This script runs while the document is still parsing (it's the last
+    // tag in <body>), before htmx's own DOMContentLoaded handler has bound
+    // the form's hx-trigger="submit" listener — triggering here would be a
+    // no-op. Defer to DOMContentLoaded (registered after htmx's own
+    // listener, so it runs after htmx has bound the form) when still
+    // parsing; call directly if this ever runs post-load instead.
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', fireInitialLoad);
+    } else {
+      fireInitialLoad();
     }
   }
 
@@ -59,13 +72,29 @@
   syncVisibilityState();
   setupLogsFilterPersistence();
 
-  // Stop htmx polling requests while tab is hidden.
+  // Stop htmx polling requests while tab is hidden. htmx's interval timer
+  // invokes the request handler without a synthetic triggering Event, so
+  // this checks the element's own hx-trigger spec instead of event.type —
+  // but an element with hx-trigger="load, every 15s" matches that check on
+  // its very first (load) request too, so track first-load completion per
+  // element and only start suppressing after that.
+  var loadedOnce = new WeakSet();
+
+  document.body.addEventListener('htmx:afterRequest', function (event) {
+    var elt = event.detail && event.detail.elt;
+    if (elt) {
+      loadedOnce.add(elt);
+    }
+  });
+
   document.body.addEventListener('htmx:beforeRequest', function (event) {
-    if (document.hidden) {
-      var trigger = event.detail && event.detail.requestConfig && event.detail.requestConfig.triggeringEvent;
-      if (trigger && trigger.type === 'every') {
-        event.preventDefault();
-      }
+    if (!document.hidden) {
+      return;
+    }
+    var elt = event.detail && event.detail.elt;
+    var spec = elt && elt.getAttribute && elt.getAttribute('hx-trigger');
+    if (spec && spec.indexOf('every') !== -1 && loadedOnce.has(elt)) {
+      event.preventDefault();
     }
   });
 })();

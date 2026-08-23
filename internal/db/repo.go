@@ -191,6 +191,36 @@ func (r *Repository) ListServicesWithHealth(ctx context.Context, minCPU float64,
 	return out, rows.Err()
 }
 
+func (r *Repository) GetServiceWithHealth(ctx context.Context, serviceID string) (map[string]any, error) {
+	var svcID, name, status, containerID string
+	var restart int
+	var lastSeen time.Time
+	var cpu float64
+	var mem int64
+	var lastLog sql.NullString
+	err := r.db.QueryRowContext(ctx, `SELECT s.id,s.name,c.status,c.id,c.restart_count,c.last_seen_at,
+		COALESCE((SELECT cpu_pct FROM container_metrics cm WHERE cm.container_id=c.id ORDER BY ts DESC LIMIT 1),0),
+		COALESCE((SELECT mem_used_bytes FROM container_metrics cm WHERE cm.container_id=c.id ORDER BY ts DESC LIMIT 1),0),
+		COALESCE((SELECT MAX(ts) FROM logs l WHERE l.container_id=c.id),'')
+		FROM services s JOIN containers c ON c.service_id=s.id
+		WHERE s.id = ?`, serviceID).
+		Scan(&svcID, &name, &status, &containerID, &restart, &lastSeen, &cpu, &mem, &lastLog)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"service_id":     svcID,
+		"name":           name,
+		"status":         status,
+		"container_id":   containerID,
+		"restart_count":  restart,
+		"last_seen":      lastSeen,
+		"cpu_pct":        cpu,
+		"mem_used_bytes": mem,
+		"last_log":       lastLog.String,
+	}, nil
+}
+
 func (r *Repository) QueryLogs(ctx context.Context, serviceID, q, level, stream string, from, to *time.Time, limit int) ([]models.LogEntry, error) {
 	clauses, args := buildLogFilters(serviceID, q, level, stream, from, to)
 	if limit <= 0 || limit > 1000 {
@@ -401,6 +431,39 @@ func (r *Repository) RecentRestartAlerts(ctx context.Context, since time.Time, l
 			return nil, err
 		}
 		item := map[string]any{"id": id, "target": target, "status": status, "started": started, "summary": summary}
+		if ended.Valid {
+			item["ended"] = ended.Time
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func (r *Repository) RecentRestartAlertsForTarget(ctx context.Context, target string, since time.Time, limit int) ([]map[string]any, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 20
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT a.id,a.target_fingerprint,a.status,a.started_ts,a.ended_ts_nullable,a.summary
+		FROM alerts a
+		JOIN alert_rules r ON r.id=a.rule_id
+		WHERE r.metric_key='container_restarts' AND a.target_fingerprint=? AND a.started_ts >= ?
+		ORDER BY a.started_ts DESC
+		LIMIT ?`, target, since.UTC(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]map[string]any, 0, limit)
+	for rows.Next() {
+		var id int64
+		var fingerprint, status, summary string
+		var started time.Time
+		var ended sql.NullTime
+		if err := rows.Scan(&id, &fingerprint, &status, &started, &ended, &summary); err != nil {
+			return nil, err
+		}
+		item := map[string]any{"id": id, "target": fingerprint, "status": status, "started": started, "summary": summary}
 		if ended.Valid {
 			item["ended"] = ended.Time
 		}

@@ -1,27 +1,30 @@
 <h2>Overview</h2>
-<div class="metric-grid">
-  <article class="metric-cell">
-    <p>CPU</p>
-    <strong>{{pct .metric.CPUPct}}</strong>
+<div class="stat-tile-row">
+  <article class="stat-tile">
+    <p class="stat-label">CPU</p>
+    <span class="stat-value">{{pct .metric.CPUPct}}</span>
+    <span class="spark">{{.cpu_spark}}</span>
   </article>
-  <article class="metric-cell">
-    <p>Memory</p>
-    <strong>{{pct .mem_pct}}</strong>
+  <article class="stat-tile">
+    <p class="stat-label">Memory</p>
+    <span class="stat-value">{{pct .mem_pct}}</span>
+    <span class="spark">{{.mem_spark}}</span>
   </article>
-  <article class="metric-cell">
-    <p>Disk</p>
-    <strong>{{pct .disk_pct}}</strong>
+  <article class="stat-tile">
+    <p class="stat-label">Disk</p>
+    <span class="stat-value">{{pct .disk_pct}}</span>
+    <span class="spark">{{.disk_spark}}</span>
   </article>
-  <article class="metric-cell">
-    <p>Load</p>
-    <strong>{{printf "%.2f %.2f %.2f" .metric.Load1 .metric.Load5 .metric.Load15}}</strong>
+  <article class="stat-tile">
+    <p class="stat-label">Load</p>
+    <span class="stat-value">{{printf "%.2f %.2f %.2f" .metric.Load1 .metric.Load5 .metric.Load15}}</span>
   </article>
-  <article class="metric-cell">
-    <p>Uptime</p>
-    <strong>{{.metric.UptimeSec}}s</strong>
+  <article class="stat-tile">
+    <p class="stat-label">Uptime</p>
+    <span class="stat-value">{{humanizeDuration .metric.UptimeSec}}</span>
   </article>
-  <article class="metric-cell">
-    <p>Active Alerts</p>
-    <strong>{{.activeAlerts}}</strong>
+  <article class="stat-tile">
+    <p class="stat-label">Active Alerts</p>
+    <span class="stat-value">{{.activeAlerts}}</span>
   </article>
 </div>

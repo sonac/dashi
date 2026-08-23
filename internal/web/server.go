@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -35,6 +36,27 @@ func NewServer(repo *db.Repository, docker *docker.Client, notify *notifier.Tele
 		"bytesToMB": func(v int64) string { return fmt.Sprintf("%.1f MB", float64(v)/1024.0/1024.0) },
 		"pct":       func(v float64) string { return fmt.Sprintf("%.1f%%", v) },
 		"timeago":   func(t time.Time) string { return time.Since(t).Round(time.Second).String() + " ago" },
+		"timeagoOrDash": func(v any) string {
+			t, ok := v.(time.Time)
+			if !ok || t.IsZero() {
+				return "—"
+			}
+			return time.Since(t).Round(time.Second).String() + " ago"
+		},
+		"humanizeDuration": func(sec int64) string {
+			d := time.Duration(sec) * time.Second
+			days := int64(d.Hours()) / 24
+			hours := int64(d.Hours()) % 24
+			mins := int64(d.Minutes()) % 60
+			switch {
+			case days > 0:
+				return fmt.Sprintf("%dd %dh", days, hours)
+			case hours > 0:
+				return fmt.Sprintf("%dh %dm", hours, mins)
+			default:
+				return fmt.Sprintf("%dm", mins)
+			}
+		},
 	}).ParseFS(webFS, "templates/*.html"))
 	return &Server{repo: repo, docker: docker, notify: notify, log: logger, tpl: tpl}
 }
@@ -49,6 +71,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/fragments/restarts", s.handleRestartAlertsFragment)
 	mux.HandleFunc("/fragments/logs", s.handleLogsFragment)
 	mux.HandleFunc("/fragments/service/", s.handleServiceSubroutes)
+	mux.HandleFunc("/service/", s.handleServiceDetail)
 	mux.HandleFunc("/settings", s.handleSettings)
 	mux.HandleFunc("/settings/telegram", s.handleSettingsTelegram)
 	mux.HandleFunc("/settings/rules", s.handleSettingsRules)
@@ -73,6 +96,23 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) handleServiceDetail(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	if len(parts) != 2 || parts[0] != "service" || parts[1] == "" {
+		http.NotFound(w, r)
+		return
+	}
+	svcID := parts[1]
+	service, err := s.repo.GetServiceWithHealth(r.Context(), svcID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := s.tpl.ExecuteTemplate(w, "service_detail.html", map[string]any{"service": service}); err != nil {
+		http.Error(w, err.Error(), 500)
+	}
+}
+
 func (s *Server) handleOverviewFragment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	metric, err := s.repo.LatestHostMetric(ctx)
@@ -81,11 +121,30 @@ func (s *Server) handleOverviewFragment(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	alerts, _ := s.repo.ActiveAlertCount(ctx)
+
+	var cpuSpark, memSpark, diskSpark template.HTML
+	if history, hErr := s.repo.RecentHostMetrics(ctx, time.Now().Add(-time.Hour), 60); hErr == nil && len(history) > 0 {
+		cpuVals := make([]float64, len(history))
+		memVals := make([]float64, len(history))
+		diskVals := make([]float64, len(history))
+		for i, m := range history {
+			cpuVals[i] = m.CPUPct
+			memVals[i] = pct(m.MemUsedBytes, m.MemTotalBytes)
+			diskVals[i] = pct(m.DiskUsedBytes, m.DiskTotalBytes)
+		}
+		cpuSpark = renderSparkline(cpuVals, 120, 28)
+		memSpark = renderSparkline(memVals, 120, 28)
+		diskSpark = renderSparkline(diskVals, 120, 28)
+	}
+
 	data := map[string]any{
 		"metric":       metric,
 		"mem_pct":      pct(metric.MemUsedBytes, metric.MemTotalBytes),
 		"disk_pct":     pct(metric.DiskUsedBytes, metric.DiskTotalBytes),
 		"activeAlerts": alerts,
+		"cpu_spark":    cpuSpark,
+		"mem_spark":    memSpark,
+		"disk_spark":   diskSpark,
 	}
 	_ = s.tpl.ExecuteTemplate(w, "fragment_overview.html", data)
 }
@@ -195,6 +254,7 @@ func (s *Server) handleLogsFragment(w http.ResponseWriter, r *http.Request) {
 	serviceID := r.URL.Query().Get("service")
 	level := r.URL.Query().Get("level")
 	stream := r.URL.Query().Get("stream")
+	rangeParam := r.URL.Query().Get("range")
 	from := queryRangeStart(r)
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit == 0 {
@@ -209,23 +269,47 @@ func (s *Server) handleLogsFragment(w http.ResponseWriter, r *http.Request) {
 	if serviceID != "" {
 		title = "Logs for " + serviceID
 	}
+	groups, _ := s.repo.GroupLogs(r.Context(), "level", serviceID, q, "", stream, from, nil, 10)
 	_ = s.tpl.ExecuteTemplate(w, "fragment_logs.html", map[string]any{
-		"entries":   entries,
-		"serviceID": serviceID,
-		"title":     title,
-		"stream":    stream,
+		"entries":        entries,
+		"serviceID":      serviceID,
+		"title":          title,
+		"stream":         stream,
+		"levelBreakdown": buildLevelPills(groups, serviceID, q, stream, rangeParam, level),
 	})
 }
 
 func (s *Server) handleServiceSubroutes(w http.ResponseWriter, r *http.Request) {
-	// /fragments/service/{id}/logs
+	// /fragments/service/{id}/logs, /fragments/service/{id}/restarts
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	if len(parts) == 4 && parts[0] == "fragments" && parts[1] == "service" && parts[3] == "logs" {
+	if len(parts) == 4 && parts[0] == "fragments" && parts[1] == "service" {
 		svcID := parts[2]
-		s.handleServiceLogsFragment(w, r.WithContext(context.WithValue(r.Context(), "serviceID", svcID)))
-		return
+		switch parts[3] {
+		case "logs":
+			s.handleServiceLogsFragment(w, r.WithContext(context.WithValue(r.Context(), "serviceID", svcID)))
+			return
+		case "restarts":
+			s.handleServiceRestartsFragment(w, r, svcID)
+			return
+		}
 	}
 	http.NotFound(w, r)
+}
+
+func (s *Server) handleServiceRestartsFragment(w http.ResponseWriter, r *http.Request, svcID string) {
+	service, err := s.repo.GetServiceWithHealth(r.Context(), svcID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	containerID, _ := service["container_id"].(string)
+	since := time.Now().Add(-7 * 24 * time.Hour)
+	restarts, err := s.repo.RecentRestartAlertsForTarget(r.Context(), containerID, since, 20)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	_ = s.tpl.ExecuteTemplate(w, "fragment_service_restarts.html", map[string]any{"restarts": restarts})
 }
 
 func (s *Server) handleServiceLogsFragment(w http.ResponseWriter, r *http.Request) {
@@ -233,6 +317,7 @@ func (s *Server) handleServiceLogsFragment(w http.ResponseWriter, r *http.Reques
 	q := r.URL.Query().Get("q")
 	level := r.URL.Query().Get("level")
 	stream := r.URL.Query().Get("stream")
+	rangeParam := r.URL.Query().Get("range")
 	from := queryRangeStart(r)
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit == 0 {
@@ -243,7 +328,13 @@ func (s *Server) handleServiceLogsFragment(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	_ = s.tpl.ExecuteTemplate(w, "fragment_logs.html", map[string]any{"entries": entries, "serviceID": svcID, "title": "Logs for " + svcID})
+	groups, _ := s.repo.GroupLogs(r.Context(), "level", svcID, q, "", stream, from, nil, 10)
+	_ = s.tpl.ExecuteTemplate(w, "fragment_logs.html", map[string]any{
+		"entries":        entries,
+		"serviceID":      svcID,
+		"title":          "Logs for " + svcID,
+		"levelBreakdown": buildLevelPills(groups, svcID, q, stream, rangeParam, level),
+	})
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
@@ -346,6 +437,42 @@ func (s *Server) handleLogsAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, entries)
+}
+
+type logLevelPill struct {
+	Level  string
+	Count  int64
+	Href   string
+	Active bool
+}
+
+func buildLevelPills(groups []map[string]any, serviceID, q, stream, rangeParam, activeLevel string) []logLevelPill {
+	pills := make([]logLevelPill, 0, len(groups))
+	for _, g := range groups {
+		key, _ := g["key"].(string)
+		count, _ := g["count"].(int64)
+		v := url.Values{}
+		if serviceID != "" {
+			v.Set("service", serviceID)
+		}
+		if q != "" {
+			v.Set("q", q)
+		}
+		if stream != "" {
+			v.Set("stream", stream)
+		}
+		if rangeParam != "" {
+			v.Set("range", rangeParam)
+		}
+		v.Set("level", key)
+		pills = append(pills, logLevelPill{
+			Level:  key,
+			Count:  count,
+			Href:   "/fragments/logs?" + v.Encode(),
+			Active: strings.EqualFold(key, activeLevel),
+		})
+	}
+	return pills
 }
 
 func queryRangeStart(r *http.Request) *time.Time {

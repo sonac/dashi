@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashi · {{.service.name}}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <script src="/static/htmx.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <a class="back-link" href="/">&larr; Dashboard</a>
+  </div>
+  <nav>
+    <a href="/settings">Settings</a>
+  </nav>
+</header>
+
+<main class="page-flow">
+  <section class="card">
+    <div class="detail-header">
+      <h1>{{.service.name}}</h1>
+      <span class="status status-{{.service.status}}">{{.service.status}}</span>
+    </div>
+    <p class="detail-meta">Container <code>{{.service.container_id}}</code> · {{.service.restart_count}} restarts · last seen {{timeago .service.last_seen}}</p>
+  </section>
+
+  <section class="card">
+    <h2>Metrics</h2>
+    <div class="chart-grid">
+      <div class="chart-card">
+        <div class="chart-toolbar" data-range-for="cpu">
+          <button type="button" data-range="15m">15m</button>
+          <button type="button" data-range="1h" class="active">1h</button>
+          <button type="button" data-range="6h">6h</button>
+          <button type="button" data-range="24h">24h</button>
+        </div>
+        <div class="chart-svg-wrap">
+          <svg data-chart data-chart-id="cpu" data-container-id="{{.service.container_id}}" data-metric="CPUPct" data-range="1h" data-label="CPU" data-unit="%"></svg>
+          <div class="chart-tooltip" data-tooltip-for="cpu"></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-toolbar" data-range-for="mem">
+          <button type="button" data-range="15m">15m</button>
+          <button type="button" data-range="1h" class="active">1h</button>
+          <button type="button" data-range="6h">6h</button>
+          <button type="button" data-range="24h">24h</button>
+        </div>
+        <div class="chart-svg-wrap">
+          <svg data-chart data-chart-id="mem" data-container-id="{{.service.container_id}}" data-metric="MemUsedBytes" data-range="1h" data-label="Memory" data-unit="MB"></svg>
+          <div class="chart-tooltip" data-tooltip-for="mem"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="service-restarts" hx-get="/fragments/service/{{.service.service_id}}/restarts" hx-trigger="load" hx-swap="innerHTML"></section>
+
+  <section class="card" id="service-logs" hx-get="/fragments/service/{{.service.service_id}}/logs" hx-trigger="load" hx-swap="innerHTML"></section>
+</main>
+
+<script src="/static/charts.js"></script>
+</body>
+</html>

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dashi Settings</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <script src="/static/htmx.min.js"></script>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -12,7 +13,7 @@
   <h1>Settings</h1>
   <nav><a href="/">Dashboard</a></nav>
 </header>
-<main class="grid">
+<main class="page-flow" hx-boost="true">
 <section class="card">
   <h2>Telegram</h2>
   <form method="post" action="/settings/telegram" class="stack">
@@ -20,8 +21,10 @@
     <label>Chat ID <input name="chat_id" value="{{.chat_id}}"></label>
     <button type="submit">Save</button>
   </form>
-  <form method="post" action="/api/alerts/test-telegram">
+  <form class="inline" hx-post="/api/alerts/test-telegram" hx-swap="none"
+        hx-on::after-request="document.getElementById('test-alert-status').textContent = event.detail.successful ? 'Sent ✓' : 'Failed — check token/chat ID'">
     <button type="submit">Send Test Alert</button>
+    <span id="test-alert-status" class="muted"></span>
   </form>
 </section>
 <section class="card">

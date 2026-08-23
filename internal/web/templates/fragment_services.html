@@ -27,7 +27,7 @@
       <td>{{printf "%.1f%%" .cpu_pct}}</td>
       <td>{{bytesToMB .mem_used_bytes}}</td>
       <td>{{.restart_count}}</td>
-      <td>{{.last_seen}}</td>
+      <td>{{timeago .last_seen}}</td>
       <td>
         <a href="#logs-panel"
            class="action-link"
@@ -35,6 +35,7 @@
            hx-target="#logs-panel"
            hx-swap="innerHTML"
            hx-on:click="document.querySelector('#logs-filter [name=service]').value='{{.service_id}}'">Open Logs</a>
+        <a href="/service/{{.service_id}}" class="action-link">View Details</a>
       </td>
     </tr>
   {{else}}

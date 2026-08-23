@@ -1,20 +1,19 @@
 <div class="panel-head">
-  <h2>Container Restarts</h2>
-  <span class="chip">Last 24h</span>
+  <h2>Restart History</h2>
+  <span class="chip">Last 7d</span>
 </div>
 <table class="data-table">
-  <thead><tr><th>Status</th><th>Container</th><th>Started</th><th>Ended</th><th>Summary</th></tr></thead>
+  <thead><tr><th>Status</th><th>Started</th><th>Ended</th><th>Summary</th></tr></thead>
   <tbody>
   {{range .restarts}}
     <tr>
       <td><span class="status status-{{.status}}">{{.status}}</span></td>
-      <td><code>{{.target}}</code></td>
       <td>{{timeago .started}}</td>
       <td>{{timeagoOrDash .ended}}</td>
       <td>{{.summary}}</td>
     </tr>
   {{else}}
-    <tr><td colspan="5">No restart alerts yet</td></tr>
+    <tr><td colspan="4">No restarts recorded for this container</td></tr>
   {{end}}
   </tbody>
 </table>

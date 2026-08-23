@@ -1,7 +1,14 @@
 <div class="panel-head">
   <h2>{{.title}}</h2>
-  <span class="chip">Live when visible</span>
+  <span class="chip">Snapshot · reapply filters to refresh</span>
 </div>
+{{if .levelBreakdown}}
+<div class="pill-row">
+  {{range .levelBreakdown}}
+  <a class="pill-count" hx-get="{{.Href}}" hx-target="#logs-panel" hx-swap="innerHTML">{{.Level}} <span class="n">{{.Count}}</span></a>
+  {{end}}
+</div>
+{{end}}
 <table class="data-table log-table">
   <thead><tr><th>Time</th><th>Level</th><th>Stream</th><th>Message</th></tr></thead>
   <tbody>
